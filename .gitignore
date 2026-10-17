@@ -1,0 +1,13 @@
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+*.zip
+*.tgz
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/

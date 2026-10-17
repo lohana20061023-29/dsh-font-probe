@@ -1,0 +1,11 @@
+# dsh-font-probe bundle patch
+#
+# `dsh.bundle.patch` layer. Installing this package appends `dsh-font-probe`
+# to `dsh.profile.bundles`, and profile boot merges this patch as a single
+# plugin row.
+#
+# `id` is the profile row id. It doubles as the Host settings namespace, so
+# renaming it orphans any persisted config — keep it stable across versions.
+- insert:
+    - id: font-probe
+      name: dsh-font-probe

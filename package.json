@@ -1,0 +1,56 @@
+{
+  "name": "dsh-font-probe",
+  "version": "1.4.1",
+  "description": "Change the DeepSeek Harness web UI font from Settings - CJK/Latin family, size, code font and typography (letter-spacing, line-height, paragraph spacing, first-line indent), persisted to the profile.",
+  "license": "MIT",
+  "type": "module",
+  "author": "dsh-font-probe contributors",
+  "homepage": "https://github.com/<your-name>/dsh-font-probe#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/<your-name>/dsh-font-probe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/<your-name>/dsh-font-probe/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "font",
+    "typography",
+    "theme",
+    "cjk",
+    "line-height",
+    "letter-spacing"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -60,16 +60,69 @@ window.__ModuleLoader__.load({
     /** 用于"宿主值是否变了"的指纹，避免每次渲染都重设草稿。 */
     const metricSignature = (src) => METRIC_KEYS.map((k) => String(metricValue(src ? src[k] : 0))).join('|')
 
-    /** 常用可选字体（本机已确认存在的中文族 + 系统栈里的拉丁族）。 */
+    /**
+     * 常用可选字体。
+     *
+     * `downloadUrl` 只在**确认过官方页面**的条目上填：缺字体时列表里会长出一个「下载」，
+     * 直接开官方页。填第三方下载站不如不填 —— 那些站点的包来源不可控。
+     *
+     * `system: true` 表示操作系统自带（Windows 中文版预装 / 系统 UI 字体），
+     * 没有合法的单独下载页，缺了就只提示，不给按钮。
+     */
     const FONT_CHOICES = [
-      { label: '阿里妈妈数黑体（Alimama ShuHeiTi）', value: 'Alimama ShuHeiTi' },
-      { label: '微软雅黑（Microsoft YaHei）', value: 'Microsoft YaHei' },
-      { label: '思源黑体（Noto Sans SC）', value: 'Noto Sans SC' },
-      { label: '思源宋体（Noto Serif SC）', value: 'Noto Serif SC' },
-      { label: '黑体（SimHei）', value: 'SimHei' },
-      { label: '宋体（SimSun）', value: 'SimSun' },
-      { label: 'Segoe UI（仅拉丁）', value: 'Segoe UI' },
+      {
+        label: '阿里妈妈数黑体（Alimama ShuHeiTi）',
+        value: 'Alimama ShuHeiTi',
+        /* 必须链**页面**而不是 zip：字体包的 CDN（fonts.alibabadesign.com）开了
+           防盗链，只认 alibabadesign.com / alibabafonts.com 的 Referer。
+           直接访问 zip 会得到 403 "denied by Referer ACL"（实测：无 Referer 403，
+           带该域 Referer 才 206）。从门户页点下载时 Referer 才是对的。 */
+        downloadUrl: 'https://www.alibabafonts.com/#/more',
+      },
+      { label: '微软雅黑（Microsoft YaHei）', value: 'Microsoft YaHei', system: true },
+      {
+        label: '思源黑体（Noto Sans SC）',
+        value: 'Noto Sans SC',
+        downloadUrl: 'https://fonts.google.com/noto/specimen/Noto+Sans+SC',
+      },
+      {
+        label: '思源宋体（Noto Serif SC）',
+        value: 'Noto Serif SC',
+        downloadUrl: 'https://fonts.google.com/noto/specimen/Noto+Serif+SC',
+      },
+      { label: '黑体（SimHei）', value: 'SimHei', system: true },
+      { label: '宋体（SimSun）', value: 'SimSun', system: true },
+      { label: 'Segoe UI（仅拉丁）', value: 'Segoe UI', system: true },
     ]
+
+    /**
+     * 判断某个字体族本机是否真的可用。
+     *
+     * 不用 `document.fonts.check()`：它对不存在的家族也返回 true（没有要加载的
+     * 字体就算"通过"）。改用**宽度比对** —— 同一个字符串，先用 monospace 量一次，
+     * 再用「目标字体 + monospace」量一次；找不到该字体时会回落到 monospace，
+     * 两次宽度相等，据此判定"未安装"。
+     *
+     * 环境不支持 canvas 时返回 true（当作已安装），宁可少显示按钮也不误报。
+     */
+    const isFamilyAvailable = (family) => {
+      try {
+        if (typeof document === 'undefined' || typeof document.createElement !== 'function') return true
+        const canvas = document.createElement('canvas')
+        if (!canvas || typeof canvas.getContext !== 'function') return true
+        const ctx = canvas.getContext('2d')
+        if (!ctx || typeof ctx.measureText !== 'function') return true
+        const probe = '中文ABCabc012'
+        ctx.font = '40px monospace'
+        const baseWidth = ctx.measureText(probe).width
+        ctx.font = `40px "${family}", monospace`
+        const testWidth = ctx.measureText(probe).width
+        if (!Number.isFinite(baseWidth) || !Number.isFinite(testWidth)) return true
+        return Math.abs(testWidth - baseWidth) > 0.5
+      } catch (error) {
+        return true
+      }
+    }
 
     /* 应用自带字体栈，抄成字面量当兜底。**不能**写 var(--dsw-font-family)：
        那是在声明该令牌的规则里引用它自己，属于自引用，整条声明判无效。 */
@@ -719,10 +772,28 @@ window.__ModuleLoader__.load({
         'The quick brown fox jumps over the lazy dog — 0123456789',
       ]
 
-      /* 行高基准与应用一致：24px + 正文字号增量，再叠加草稿里的行距增量。 */
+      /* 行高/字号基准与应用一致：24px 基准 + 正文字号增量，再叠加草稿里的行距增量。
+         预览的字号必须**跟着草稿走** —— 之前这里写死 15px/14px，
+         结果改正文字号时只有行高变了、字号纹丝不动，看着像功能没生效。 */
       const draftSizeNum = Number(String(draftSize).trim())
-      const baseLineHeight = Number.isFinite(draftSizeNum) && draftSizeNum > 0 ? 24 + (draftSizeNum - 14) : 24
+      const sizeValid = Number.isFinite(draftSizeNum) && draftSizeNum > 0
+      const baseLineHeight = sizeValid ? 24 + (draftSizeNum - 14) : 24
       const previewLineHeight = baseLineHeight + (metrics.lineHeight || 0)
+      /* 未设置时按应用默认的 14px 显示，这样"空"和"设成 14"看起来一致，符合预期 */
+      const previewFontSize = sizeValid ? draftSizeNum : 14
+
+      /* 代码样张：只受「代码字体 / 代码字号」影响。
+         应用里代码块字号在 11–13px 区间（各组件写死，没有令牌），
+         未设置时取 12px 作为代表值；用户设了就用用户的。 */
+      const draftCodeSizeNum = Number(String(draftCodeSize).trim())
+      const codeSizeValid = Number.isFinite(draftCodeSizeNum) && draftCodeSizeNum > 0
+      const previewCodeFontSize = codeSizeValid ? draftCodeSizeNum : 12
+      const previewCodeLineHeight = Math.round(previewCodeFontSize * 1.6)
+      /* 反引号在单引号字符串里是普通字符，不会被当成模板插值 */
+      const previewCodeSample = [
+        'const greet = (name) => `Hi, ${name}`',
+        '// 0123 ABCdef + 中文标点，。！？',
+      ].join('\n')
 
       const asDraft = (v) => (typeof v === 'string' ? v : '')
 
@@ -772,6 +843,58 @@ window.__ModuleLoader__.load({
         setDraftCode(DEFAULTS.codeFontFamily)
         setDraftCodeSize(DEFAULTS.codeFontSize)
         setMetrics(pickMetrics(DEFAULTS))
+      }
+
+      /* ---------- 预览的尺寸偏好（可拖动 / 可隐藏）----------
+         字号和行距一调大，预览会把吸底卡片顶得很高。给一条拖动条和一个隐藏开关，
+         偏好存进 localStorage：**不动 host schema，所以不需要重启**。 */
+      const PREVIEW_PREF_KEY = 'dsh-font-probe.preview-pref'
+      const readPreviewPref = () => {
+        const fallback = { height: 176, hidden: false }
+        try {
+          if (typeof window === 'undefined' || !window.localStorage) return fallback
+          const raw = window.localStorage.getItem(PREVIEW_PREF_KEY)
+          if (!raw) return fallback
+          const parsed = JSON.parse(raw) || {}
+          const height = Number(parsed.height)
+          return {
+            height: Number.isFinite(height) && height >= 60 ? Math.min(600, Math.round(height)) : fallback.height,
+            hidden: parsed.hidden === true,
+          }
+        } catch (error) {
+          return fallback
+        }
+      }
+      const [previewPref, setPreviewPref] = React.useState(readPreviewPref)
+
+      const persistPreviewPref = (next) => {
+        setPreviewPref(next)
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(PREVIEW_PREF_KEY, JSON.stringify(next))
+          }
+        } catch (error) { /* 隐私模式下可能抛错，忽略即可 */ }
+      }
+
+      /** 向上拖 = 变高。拖动过程只更新状态，松手才落盘，避免每次 mousemove 都写 localStorage。 */
+      const startPreviewResize = (event) => {
+        if (typeof window === 'undefined' || !window.addEventListener) return
+        event.preventDefault()
+        const startY = event.clientY
+        const startHeight = previewPref.height
+        const hiddenAtStart = previewPref.hidden
+        let latest = startHeight
+        const onMove = (moveEvent) => {
+          latest = Math.round(Math.max(80, Math.min(560, startHeight + (startY - moveEvent.clientY))))
+          setPreviewPref((prev) => (prev.height === latest ? prev : { ...prev, height: latest }))
+        }
+        const onUp = () => {
+          window.removeEventListener('mousemove', onMove)
+          window.removeEventListener('mouseup', onUp)
+          persistPreviewPref({ height: latest, hidden: hiddenAtStart })
+        }
+        window.addEventListener('mousemove', onMove)
+        window.addEventListener('mouseup', onUp)
       }
 
       /* ---------- 当前字体名的横向滚动（marquee）----------
@@ -1024,28 +1147,81 @@ React.createElement('div', {
                       borderRadius: 'var(--dsw-radius-md)',
                       boxShadow: '0 8px 24px rgb(0 0 0 / 0.18)',
                     },
-                  }, FONT_CHOICES.map((choice) => React.createElement('button', {
-                    key: choice.value,
-                    type: 'button',
-                    onClick: () => {
-                      setDraft(choice.value)
-                      setPresetMenuOpen(false)
-                    },
-                    style: {
-                      font: 'inherit',
-                      fontSize: '13px',
-                      lineHeight: '20px',
-                      textAlign: 'left',
-                      padding: '6px 8px',
-                      borderRadius: 'var(--dsw-radius-sm, 4px)',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--dsw-alias-label-primary)',
-                      background: choice.value === asDraft(draft)
-                        ? 'var(--dsw-alias-bg-module-platform)'
-                        : 'transparent',
-                    },
-                  }, choice.label)))
+                  }, FONT_CHOICES.map((choice) => {
+                    /* 每次展开菜单时实测哪些没装：7 个族各量一次宽度，开销可忽略。
+                       只在菜单打开时算，关着的时候完全不碰 canvas。 */
+                    const installed = isFamilyAvailable(choice.value)
+                    const showDownload = !installed && typeof choice.downloadUrl === 'string'
+                    return React.createElement('div', {
+                      key: choice.value,
+                      style: { display: 'flex', alignItems: 'center', gap: '4px' },
+                    }, [
+                      React.createElement('button', {
+                        key: 'pick',
+                        type: 'button',
+                        onClick: () => {
+                          setDraft(choice.value)
+                          setPresetMenuOpen(false)
+                        },
+                        style: {
+                          font: 'inherit',
+                          fontSize: '13px',
+                          lineHeight: '20px',
+                          textAlign: 'left',
+                          padding: '6px 8px',
+                          borderRadius: 'var(--dsw-radius-sm, 4px)',
+                          border: 'none',
+                          cursor: 'pointer',
+                          flex: '1 1 auto',
+                          minWidth: '0',
+                          color: installed ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-tertiary)',
+                          background: choice.value === asDraft(draft)
+                            ? 'var(--dsw-alias-bg-module-platform)'
+                            : 'transparent',
+                        },
+                      }, choice.label),
+
+                      /* 没装 + 有官方页 → 直接开官方下载 */
+                      showDownload
+                        ? React.createElement('a', {
+                            key: 'dl',
+                            href: choice.downloadUrl,
+                            target: '_blank',
+                            rel: 'noreferrer noopener',
+                            title: '打开官方下载页',
+                            onClick: (event) => event.stopPropagation(),
+                            style: {
+                              flex: '0 0 auto',
+                              fontSize: '11px',
+                              lineHeight: '18px',
+                              padding: '1px 7px',
+                              borderRadius: '999px',
+                              textDecoration: 'none',
+                              color: 'var(--dsw-alias-label-primary)',
+                              background: 'var(--dsw-alias-interactive-bg-hover)',
+                              border: '0.5px solid var(--dsw-alias-border-l3)',
+                            },
+                          }, '下载')
+                        : null,
+
+                      /* 没装但是系统自带（或没有确认过官方页）→ 只给一个不可点的提示 */
+                      !installed && !showDownload
+                        ? React.createElement('span', {
+                            key: 'miss',
+                            title: choice.system ? '操作系统自带，通常已随系统安装' : '本机未安装',
+                            style: {
+                              flex: '0 0 auto',
+                              fontSize: '11px',
+                              lineHeight: '18px',
+                              padding: '1px 7px',
+                              borderRadius: '999px',
+                              color: 'var(--dsw-alias-label-tertiary)',
+                              border: '0.5px dashed var(--dsw-alias-border-l3)',
+                            },
+                          }, choice.system ? '系统自带' : '未安装')
+                        : null,
+                    ])
+                  }))
                 : null,
 
               /* 不再提供手输框：自定义族名统一走「浏览本机字体…」，
@@ -1297,33 +1473,113 @@ React.createElement('div', {
            不只是字体：字距 / 行距 / 段距 / 首行缩进全部按**草稿**渲染，
            所以确认前看到的就接近真实效果。
            行高基准与应用一致（24px + 字号增量），再叠加草稿里的行距增量，
-           这样"改字号 → 行高跟着变"的关系在预览里也成立。 */
-        React.createElement('div', { key: 'previewLabel', style: {
-          fontSize: '11px',
-          lineHeight: '16px',
-          letterSpacing: '0.08em',
-          color: 'var(--dsw-alias-label-tertiary)',
-        } }, '总预览'),
+           这样"改字号 → 行高跟着变"的关系在预览里也成立。
+
+           高度可拖动、可隐藏：字号和行距调大时预览会顶得很高，
+           所以给它一个 maxHeight + 滚动，以及顶层的一条拖动条。 */
         React.createElement('div', {
+          key: 'resizer',
+          title: '拖动调整预览高度',
+          'aria-label': '拖动调整预览高度',
+          role: 'separator',
+          'aria-orientation': 'horizontal',
+          onMouseDown: startPreviewResize,
+          style: {
+            /* 负边距抵消卡片 padding，让拖动条贴住卡片上缘 */
+            margin: '-12px -14px 8px',
+            height: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'ns-resize',
+            flexShrink: 0,
+          },
+        }, React.createElement('div', {
+          key: 'grip',
+          style: {
+            width: '36px',
+            height: '3px',
+            borderRadius: '999px',
+            background: 'var(--dsw-alias-border-l3)',
+          },
+        })),
+
+        React.createElement('div', {
+          key: 'previewHead',
+          style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' },
+        }, [
+          React.createElement('span', {
+            key: 'label',
+            style: {
+              fontSize: '11px',
+              lineHeight: '16px',
+              letterSpacing: '0.08em',
+              color: 'var(--dsw-alias-label-tertiary)',
+            },
+          }, previewPref.hidden ? '总预览（已隐藏）' : '总预览'),
+          React.createElement('button', {
+            key: 'toggle',
+            type: 'button',
+            onClick: () => persistPreviewPref({ ...previewPref, hidden: !previewPref.hidden }),
+            style: {
+              font: 'inherit',
+              fontSize: '11px',
+              lineHeight: '16px',
+              padding: '0 4px',
+              border: 'none',
+              background: 'transparent',
+              color: 'var(--dsw-alias-label-tertiary)',
+              cursor: 'pointer',
+            },
+          }, previewPref.hidden ? '显示' : '隐藏'),
+        ]),
+
+        previewPref.hidden ? null : React.createElement('div', {
           key: 'preview',
           style: {
             display: 'flex',
             flexDirection: 'column',
+            /* 超出用户设定的高度就在内部滚动，不再把卡片顶高 */
+            maxHeight: `${previewPref.height}px`,
+            overflowY: 'auto',
             fontFamily: buildUiStack(draftLatin, draft) || APP_FALLBACK_STACK,
             letterSpacing: metrics.letterSpacing > 0 ? `${metrics.letterSpacing}px` : undefined,
             color: 'var(--dsw-alias-label-primary)',
           },
-        }, previewParagraphs.map((text, index) => React.createElement('p', {
-          key: 'p' + index,
-          style: {
-            margin: 0,
-            marginTop: index === 0 ? 0 : `${metrics.paragraphSpacing}px`,
-            lineHeight: `${previewLineHeight}px`,
-            textIndent: metrics.firstLineIndent > 0 ? `${metrics.firstLineIndent}em` : undefined,
-            fontSize: index === 0 ? '15px' : '14px',
-            color: index === 0 ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)',
-          },
-        }, text))),
+        }, [
+          ...previewParagraphs.map((text, index) => React.createElement('p', {
+            key: 'p' + index,
+            style: {
+              margin: 0,
+              marginTop: index === 0 ? 0 : `${metrics.paragraphSpacing}px`,
+              lineHeight: `${previewLineHeight}px`,
+              textIndent: metrics.firstLineIndent > 0 ? `${metrics.firstLineIndent}em` : undefined,
+              /* 跟草稿字号走，而不是写死 —— 两段用同一字号，只有颜色区分主次 */
+              fontSize: `${previewFontSize}px`,
+              color: index === 0 ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)',
+            },
+          }, text)),
+
+          /* 代码样张：验证「代码字体 / 代码字号」。
+             字距、行距、段距、缩进**不套用** —— 那四项只作用于正文段落（MD p），
+             套到代码上会让预览失真。 */
+          React.createElement('pre', {
+            key: 'code',
+            style: {
+              margin: 0,
+              marginTop: '10px',
+              padding: '8px 10px',
+              borderRadius: 'var(--dsw-radius-md)',
+              background: 'color-mix(in srgb, var(--dsw-alias-label-primary) 7%, transparent)',
+              fontFamily: stackFor(draftCode, APP_CODE_FALLBACK_STACK),
+              fontSize: `${previewCodeFontSize}px`,
+              lineHeight: `${previewCodeLineHeight}px`,
+              whiteSpace: 'pre-wrap',
+              overflowWrap: 'anywhere',
+              color: 'var(--dsw-alias-label-primary)',
+            },
+          }, previewCodeSample),
+        ]),
 
         /* 按钮行：和预览之间用一条细线分开 */
         React.createElement('div', {

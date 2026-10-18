@@ -29,6 +29,9 @@ const FIELD_DEFAULTS = {
   fontSize: '',
   codeFontFamily: '',
   codeFontSize: '',
+  /* 字重：界面（含正文）/ 标题。存字符串，空 = 不覆盖。 */
+  fontWeight: '',
+  headingFontWeight: '',
   /* 排版四项。都存成字符串；空串或「0」都表示"不覆盖"。 */
   letterSpacing: '',
   lineHeight: '',
@@ -124,6 +127,8 @@ function buildConfig() {
     fontSize: str(FIELD_DEFAULTS.fontSize),
     codeFontFamily: str(FIELD_DEFAULTS.codeFontFamily),
     codeFontSize: str(FIELD_DEFAULTS.codeFontSize),
+    fontWeight: str(FIELD_DEFAULTS.fontWeight),
+    headingFontWeight: str(FIELD_DEFAULTS.headingFontWeight),
     letterSpacing: str(FIELD_DEFAULTS.letterSpacing),
     lineHeight: str(FIELD_DEFAULTS.lineHeight),
     paragraphSpacing: str(FIELD_DEFAULTS.paragraphSpacing),

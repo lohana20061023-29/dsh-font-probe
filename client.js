@@ -28,6 +28,9 @@ window.__ModuleLoader__.load({
       fontSize: '',
       codeFontFamily: '',
       codeFontSize: '',
+      /* 字重：空 = 不覆盖 */
+      fontWeight: '',
+      headingFontWeight: '',
       /* 排版四项：空串或 "0" 都按"不覆盖"处理 */
       letterSpacing: '',
       lineHeight: '',
@@ -49,6 +52,24 @@ window.__ModuleLoader__.load({
       const n = Number(typeof raw === 'string' ? raw.trim() : raw)
       return Number.isFinite(n) && n > 0 ? n : 0
     }
+
+    /** 字重归一：只接受 100–900 的整百，其它一律 0（= 不覆盖）。 */
+    const weightValue = (raw) => {
+      const n = Number(String(raw == null ? '' : raw).trim())
+      return Number.isFinite(n) && n >= 100 && n <= 900 && n % 100 === 0 ? n : 0
+    }
+
+    /* 可选字重。用了 select 而不是滑块：字重是离散档位，滑块中间值没有意义。 */
+    const WEIGHT_OPTIONS = [
+      { value: '', label: '默认' },
+      { value: '300', label: '300 细体' },
+      { value: '400', label: '400 常规' },
+      { value: '500', label: '500 中等' },
+      { value: '600', label: '600 半粗' },
+      { value: '700', label: '700 粗体' },
+      { value: '800', label: '800 特粗' },
+      { value: '900', label: '900 黑体' },
+    ]
 
     /** 从任意来源（快照 / 默认值）抽取四个排版数值。 */
     const pickMetrics = (src) => {
@@ -171,6 +192,8 @@ window.__ModuleLoader__.load({
       fontSize: DEFAULTS.fontSize,
       codeFontFamily: DEFAULTS.codeFontFamily,
       codeFontSize: DEFAULTS.codeFontSize,
+      fontWeight: DEFAULTS.fontWeight,
+      headingFontWeight: DEFAULTS.headingFontWeight,
       letterSpacing: DEFAULTS.letterSpacing,
       lineHeight: DEFAULTS.lineHeight,
       paragraphSpacing: DEFAULTS.paragraphSpacing,
@@ -246,6 +269,24 @@ window.__ModuleLoader__.load({
       const codeSize = String(state.codeFontSize == null ? '' : state.codeFontSize).trim()
       if (/^\d+(\.\d+)?$/.test(codeSize) && Number(codeSize) > 0) {
         metricRules.push(`pre, pre code, code, kbd, samp { font-size: ${Number(codeSize)}px !important; }`)
+      }
+
+      /* ---------- 字重 ----------
+         界面字重：挂 body（低特异性）→ 只影响**继承**的文本，组件自己声明的
+         字重仍然优先。这样不会把"粗体标题 vs 常规正文"的层级压平。
+         正文段落再单独压一次，因为 Markdown 段落常由 font 简写连带指定字重。
+         标题字重：必须 !important —— 应用用 font 简写（含 weight）写在类规则里。 */
+      const uiWeight = weightValue(state.fontWeight)
+      if (uiWeight > 0) {
+        metricRules.push(`body { font-weight: ${uiWeight}; }`)
+        metricRules.push(`${MD} p, ${MD} li, ${MD} blockquote, ${MD} td { font-weight: ${uiWeight} !important; }`)
+      }
+
+      const headingWeight = weightValue(state.headingFontWeight)
+      if (headingWeight > 0) {
+        metricRules.push(
+          `${MD} h1, ${MD} h2, ${MD} h3, ${MD} h4, ${MD} h5, ${MD} h6 { font-weight: ${headingWeight} !important; }`,
+        )
       }
 
       const css =
@@ -530,6 +571,8 @@ window.__ModuleLoader__.load({
         fontSize: str(value.fontSize, DEFAULTS.fontSize),
         codeFontFamily: str(value.codeFontFamily, DEFAULTS.codeFontFamily),
         codeFontSize: str(value.codeFontSize, DEFAULTS.codeFontSize),
+        fontWeight: str(value.fontWeight, DEFAULTS.fontWeight),
+        headingFontWeight: str(value.headingFontWeight, DEFAULTS.headingFontWeight),
         letterSpacing: str(value.letterSpacing, DEFAULTS.letterSpacing),
         lineHeight: str(value.lineHeight, DEFAULTS.lineHeight),
         paragraphSpacing: str(value.paragraphSpacing, DEFAULTS.paragraphSpacing),
@@ -691,6 +734,8 @@ window.__ModuleLoader__.load({
       const [draftSize, setDraftSize] = React.useState(snapshot.fontSize)
       const [draftCode, setDraftCode] = React.useState(snapshot.codeFontFamily)
       const [draftCodeSize, setDraftCodeSize] = React.useState(snapshot.codeFontSize)
+      const [draftWeight, setDraftWeight] = React.useState(snapshot.fontWeight)
+      const [draftHeadingWeight, setDraftHeadingWeight] = React.useState(snapshot.headingFontWeight)
 
       /* ---------- 采样设置面板的真实底色 ----------
          渐隐带必须"淹没"在设置面板里，任何猜错的令牌都会露出一道色带。
@@ -755,6 +800,16 @@ window.__ModuleLoader__.load({
         setSyncedCodeSize(snapshot.codeFontSize)
         setDraftCodeSize(snapshot.codeFontSize)
       }
+      const [syncedWeight, setSyncedWeight] = React.useState(snapshot.fontWeight)
+      if (syncedWeight !== snapshot.fontWeight) {
+        setSyncedWeight(snapshot.fontWeight)
+        setDraftWeight(snapshot.fontWeight)
+      }
+      const [syncedHeadingWeight, setSyncedHeadingWeight] = React.useState(snapshot.headingFontWeight)
+      if (syncedHeadingWeight !== snapshot.headingFontWeight) {
+        setSyncedHeadingWeight(snapshot.headingFontWeight)
+        setDraftHeadingWeight(snapshot.headingFontWeight)
+      }
 
       /* 排版四项合成**一个**草稿对象：字段同构，逐项 useState 只会堆样板。 */
       const [metrics, setMetrics] = React.useState(() => pickMetrics(snapshot))
@@ -781,6 +836,17 @@ window.__ModuleLoader__.load({
       const previewLineHeight = baseLineHeight + (metrics.lineHeight || 0)
       /* 未设置时按应用默认的 14px 显示，这样"空"和"设成 14"看起来一致，符合预期 */
       const previewFontSize = sizeValid ? draftSizeNum : 14
+
+      /* 字重：正文跟随「界面字重」（未设为 400），标题跟随「标题字重」（未设为 700）。
+         这两个默认值来自应用自己的令牌：
+           --dsw-font-markdown-base 不带字重 → 400
+           --dsw-font-markdown-h1/h2/h3:     → 700，h4 才是 600
+         所以标题样张按 h2 处理（700）。 */
+      const weightDelta = sizeValid ? draftSizeNum - 14 : 0
+      const previewBodyWeight = weightValue(draftWeight) || 400
+      const previewHeadingWeight = weightValue(draftHeadingWeight) || 700
+      const previewHeadingSize = 19 + weightDelta   // h2 = calc(19px + delta)
+      const previewHeadingLineHeight = 28 + weightDelta
 
       /* 代码样张：只受「代码字体 / 代码字号」影响。
          应用里代码块字号在 11–13px 区间（各组件写死，没有令牌），
@@ -809,6 +875,8 @@ window.__ModuleLoader__.load({
         asDraft(draftSize) !== asDraft(snapshot.fontSize) ||
         asDraft(draftCode) !== asDraft(snapshot.codeFontFamily) ||
         asDraft(draftCodeSize) !== asDraft(snapshot.codeFontSize) ||
+        asDraft(draftWeight) !== asDraft(snapshot.fontWeight) ||
+        asDraft(draftHeadingWeight) !== asDraft(snapshot.headingFontWeight) ||
         METRIC_KEYS.some((k) => metrics[k] !== metricValue(snapshot[k]))
 
       /** 字号只接受正的十进制数；其它输入一律按"不覆盖"存空，避免脏值进 profile。 */
@@ -817,6 +885,12 @@ window.__ModuleLoader__.load({
         if (!/^\d+(\.\d+)?$/.test(t)) return ''
         const n = Number(t)
         return n > 0 ? t : ''
+      }
+
+      /** 字重只接受 100–900 的整百，其它一律存空。 */
+      const weightOrEmpty = (v) => {
+        const n = weightValue(v)
+        return n > 0 ? String(n) : ''
       }
 
       const confirmAll = () => {
@@ -829,6 +903,8 @@ window.__ModuleLoader__.load({
             fontSize: pxOrEmpty(draftSize),
             codeFontFamily: draftCode,
             codeFontSize: pxOrEmpty(draftCodeSize),
+            fontWeight: weightOrEmpty(draftWeight),
+            headingFontWeight: weightOrEmpty(draftHeadingWeight),
             ...metricPayload,
           },
           true,
@@ -842,6 +918,8 @@ window.__ModuleLoader__.load({
         setDraftSize(DEFAULTS.fontSize)
         setDraftCode(DEFAULTS.codeFontFamily)
         setDraftCodeSize(DEFAULTS.codeFontSize)
+        setDraftWeight(DEFAULTS.fontWeight)
+        setDraftHeadingWeight(DEFAULTS.headingFontWeight)
         setMetrics(pickMetrics(DEFAULTS))
       }
 
@@ -1367,6 +1445,41 @@ React.createElement('div', {
         ]),
       )
 
+      /* ---------- 字重：界面（含正文）/ 标题 并排一行 ----------
+         用 select 而不是滑块：字重是离散档位，滑块中间值没有意义。
+         标题字重留空时跟随界面字重，所以"只调一处"也能整体变粗细。 */
+      const weightField = (key, label, hint, ariaLabel, value, onChange) =>
+        React.createElement('div', {
+          key,
+          style: { flex: '1 1 0', minWidth: '0', display: 'flex', flexDirection: 'column', gap: '6px' },
+        }, [
+          React.createElement('span', { key: 'l' }, [
+            React.createElement('span', { key: 't', style: labelStyle }, label),
+            React.createElement('span', { key: 'h', style: hintStyle }, hint),
+          ]),
+          React.createElement('select', {
+            key: 's',
+            'aria-label': ariaLabel,
+            value: weightOrEmpty(value),
+            style: { ...controlStyle, minWidth: '0', width: '100%' },
+            onChange,
+          }, WEIGHT_OPTIONS.map((opt) => React.createElement('option', { key: opt.value || 'default', value: opt.value }, opt.label))),
+        ])
+
+      rows.push(
+        React.createElement('div', { key: 'weights', style: { ...rowStyle, alignItems: 'stretch', gap: '16px' } }, [
+          weightField('bodyWeight', '界面字重', '正文与界面文字；留空为默认', '界面字重', draftWeight,
+            (event) => setDraftWeight(event.target.value)),
+          React.createElement('div', {
+            key: 'divider',
+            'aria-hidden': true,
+            style: { flex: '0 0 auto', width: '0.5px', alignSelf: 'stretch', background: 'var(--dsw-alias-border-l2)' },
+          }),
+          weightField('headingWeight', '标题字重', '仅 Markdown 标题；留空跟随界面字重', '标题字重', draftHeadingWeight,
+            (event) => setDraftHeadingWeight(event.target.value)),
+        ]),
+      )
+
       /* ---------- 排版四项（滑块）----------
           只作用于正文 Markdown 区，不碰设置界面自己的文字（见 applyNow 里的
          [class*="_markdown"] 选择器）。滑块拖到最左（0）即"不覆盖"。 */
@@ -1544,9 +1657,26 @@ React.createElement('div', {
             overflowY: 'auto',
             fontFamily: buildUiStack(draftLatin, draft) || APP_FALLBACK_STACK,
             letterSpacing: metrics.letterSpacing > 0 ? `${metrics.letterSpacing}px` : undefined,
+            /* 正文默认字重挂在容器上，段落继承；标题样张单独覆盖 */
+            fontWeight: String(previewBodyWeight),
             color: 'var(--dsw-alias-label-primary)',
           },
         }, [
+          /* 标题样张：验证「标题字重」。按 h2 的尺寸（19px + 字号增量 / 28px）渲染，
+             默认字重 700 —— 与应用 --dsw-font-markdown-h1..h3 一致。
+             没有它，「标题字重」在预览里完全没有体现。 */
+          React.createElement('div', {
+            key: 'heading',
+            style: {
+              margin: 0,
+              marginBottom: '6px',
+              fontSize: `${previewHeadingSize}px`,
+              lineHeight: `${previewHeadingLineHeight}px`,
+              fontWeight: String(previewHeadingWeight),
+              color: 'var(--dsw-alias-label-primary)',
+            },
+          }, '标题示例 Heading'),
+
           ...previewParagraphs.map((text, index) => React.createElement('p', {
             key: 'p' + index,
             style: {

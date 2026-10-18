@@ -5,13 +5,13 @@
   "license": "MIT",
   "type": "module",
   "author": "dsh-font-probe contributors",
-  "homepage": "https://github.com/<your-name>/dsh-font-probe#readme",
+  "homepage": "https://github.com/lohana20061023-29/dsh-font-probe#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/<your-name>/dsh-font-probe.git"
+    "url": "git+https://github.com/lohana20061023-29/dsh-font-probe.git"
   },
   "bugs": {
-    "url": "https://github.com/<your-name>/dsh-font-probe/issues"
+    "url": "https://github.com/lohana20061023-29/dsh-font-probe/issues"
   },
   "keywords": [
     "dsh-plugin",

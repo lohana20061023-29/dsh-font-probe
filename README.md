@@ -59,7 +59,7 @@ DSH 的 GUI 只内置了配色方案和正文字号（10–22px），**没有字
 
 ```bash
 # 从 GitHub 直接装
-dsh plugin --profile desktop add github:<你的用户名>/dsh-font-probe
+dsh plugin --profile desktop add github:lohana20061023-29/dsh-font-probe
 ```
 
 也可以从本地目录装（适合改代码调试）：
@@ -182,7 +182,7 @@ no `app.asar` edits, so DSH upgrades never overwrite your setup.
 - Settings persist to the profile and survive restarts
 
 ```bash
-dsh plugin --profile desktop add github:<your-name>/dsh-font-probe
+dsh plugin --profile desktop add github:lohana20061023-29/dsh-font-probe
 ```
 
 Restart the app once after installing. Everything lives under

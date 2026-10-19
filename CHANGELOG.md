@@ -6,6 +6,30 @@
 > 插件是双半体结构，host 的 schema 由 ESM 模块加载器导入；  
 > 热更新只推送 client 半体，宿主读不到新字段，写入会被静默拒绝。
 
+## 1.5.2
+
+> 本版**没有新增配置字段**，但**建议重启一次**：
+> 本版修的是 host 半体启动时的依赖解析，热更新不会重载 host。
+
+### 修复
+
+- **装/卸载其他插件后，本插件的设置页可能整块消失**
+  （`Config` 变成 `undefined`）。
+  根因：`@deepseek-ai/schemastery` 原先只从 **profile 的 `node_modules`** 解析。
+  而这一份常常是别的插件的传递依赖 —— pnpm 在安装/卸载别的东西时会把它
+  prune 掉，插件随即解析不到构建器，条目投射不出设置表单。
+  现在改为按"解析根"去找（`require.resolve(spec, { paths })`），
+  覆盖：插件自身及祖先、工作目录、`argv`/`DSH_PROFILE_DIR` 里的 profiles 路径、
+  **Electron 的 `resources/app.asar[/dsh]` 安装树**，以及环境变量
+  `DSH_SCHEMA_ROOT` 作为手动逃生口。
+  app 自带的那份 schemastery 不会因为 profile 被清理而消失。
+
+### 变更
+
+- 只接受**真正带 `.volatile()`** 的 schemastery 构建器。只有裸 `schemastery`
+  （3.18，没有 `.volatile()`）时宁可不给 `Config` —— 避免"界面能改、写不进去"
+  的静默失败。
+
 ## 1.5.1
 
 > 本版**没有新增配置字段**，无需重启，刷新页面即可。

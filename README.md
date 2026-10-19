@@ -5,8 +5,8 @@
 中英文字体分开设、字号分正文与代码、字距行距段距首行缩进四根滑块，
 改完先在吸底总预览里看准，再一键确认 —— 配置写回 profile，重启不丢。
 
+[![npm](https://img.shields.io/npm/v/dsh-font-probe?label=npm)](https://www.npmjs.com/package/dsh-font-probe)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
-[![version](https://img.shields.io/badge/version-1.4.1-informational.svg)](./package.json)
 [![platform](https://img.shields.io/badge/platform-DSH%20Web%20GUI-6f42c1.svg)](#)
 [![deps](https://img.shields.io/badge/dependencies-none-success.svg)](./package.json)
 
@@ -57,22 +57,10 @@ DSH 的 GUI 只内置了配色方案和正文字号（10–22px），**没有字
 
 ## 安装
 
-**推荐用 tarball（不需要装 git）**：
+**一条命令，不需要 git**：
 
 ```bash
-dsh plugin --profile desktop add https://github.com/lohana20061023-29/dsh-font-probe/releases/download/v1.5.1/dsh-font-probe-1.5.1.tgz
-```
-
-或者从 GitHub 源码装（**需要本机有 git**）：
-
-```bash
-dsh plugin --profile desktop add github:lohana20061023-29/dsh-font-probe
-```
-
-也可以从本地目录装（适合改代码调试）：
-
-```bash
-dsh plugin --profile desktop add G:/path/to/dsh-font-probe
+dsh plugin --profile desktop add dsh-font-probe
 ```
 
 装完**重启应用**（托盘右键 → 退出应用 → 重新打开），
@@ -81,8 +69,28 @@ dsh plugin --profile desktop add G:/path/to/dsh-font-probe
 > 首次安装后必须重启：插件是双半体（host + client），
 > host 半体的配置 schema 要由模块加载器导入一次才生效。
 
-> 升级版本时把上面 URL 里的版本号换成新的即可。
-> 找最新版：<https://github.com/lohana20061023-29/dsh-font-probe/releases/latest>
+<details>
+<summary>其它安装方式</summary>
+
+从 GitHub 源码装（**需要本机有 git**）：
+
+```bash
+dsh plugin --profile desktop add github:lohana20061023-29/dsh-font-probe
+```
+
+从 Release 的 tarball 装（不需要 git，也不需要 npm 源）：
+
+```bash
+dsh plugin --profile desktop add https://github.com/lohana20061023-29/dsh-font-probe/releases/latest/download/dsh-font-probe-1.5.2.tgz
+```
+
+从本地目录装（适合改代码调试）：
+
+```bash
+dsh plugin --profile desktop add G:/path/to/dsh-font-probe
+```
+
+</details>
 
 ### 更新与卸载
 
@@ -193,10 +201,10 @@ no `app.asar` edits, so DSH upgrades never overwrite your setup.
 - Settings persist to the profile and survive restarts
 
 ```bash
-# recommended: no git required
-dsh plugin --profile desktop add https://github.com/lohana20061023-29/dsh-font-probe/releases/download/v1.5.1/dsh-font-probe-1.5.1.tgz
+# from npm — one command, no git needed
+dsh plugin --profile desktop add dsh-font-probe
 
-# alternative: from source (requires git on your machine)
+# from source (requires git on your machine)
 dsh plugin --profile desktop add github:lohana20061023-29/dsh-font-probe
 ```
 

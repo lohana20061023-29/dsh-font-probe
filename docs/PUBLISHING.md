@@ -2,6 +2,24 @@
 
 > 这份文档给**维护者**看，普通用户只需要读 [README](../README.md)。
 
+## 一条硬规矩：README 是对外的
+
+`README.md` 会被所有访客看到，**不要往里面写只有维护者才需要的话**，例如：
+
+- ❌「想换图：覆盖 `docs/settings.png` 即可」
+- ❌「记得上传后把占位符换掉」
+- ❌「这份说明看完可以删掉」
+
+这类内容一律写进本文件（或 `INTERNALS.md`）。理由是：那些句子在读者眼里是噪音，
+而且每次发版都要手动删，很容易忘。
+
+同理，**安装命令里不要留 `<your-name>` 这类占位符** —— 读者复制了会直接失败。
+仓库地址固定为：
+
+```
+github:lohana20061023-29/dsh-font-probe
+```
+
 ## 发布到哪里
 
 DSH 没有官方插件市场，`dsh plugin` 只是 pnpm 的薄封装：
@@ -103,24 +121,76 @@ dsh-plugin
 - **Describe**：贴 `CHANGELOG.md` 里对应那段
 - **Attach binaries**：上传 `dsh-font-probe-v1.4.1.zip`
 
-## 5. （可选）发布到 npm
+## 5. 分发：tarball 优先，npm 可选
+
+### 5.1 tarball（首选，零门槛）
+
+`pnpm pack` 产出的 `.tgz` 就是 npm 包本体。把它挂到 Release 上，
+用户就能**一条命令安装、不需要 git、不需要 npm 账号**：
 
 ```bash
-npm login
-npm publish
+dsh plugin --profile desktop add https://github.com/lohana20061023-29/dsh-font-probe/releases/download/v1.5.1/dsh-font-probe-1.5.1.tgz
 ```
 
-`package.json` 里的 `files` 已经把范围限死在插件本身（不含 docs 与截图），
-所以打出来的包很小。
+pnpm 支持从远程 URL 装 tarball，这条路径已验证可行。
 
-发布后用户可以直接：
+打包：
 
-```bash
-dsh plugin --profile desktop add dsh-font-probe
+```powershell
+$node = 'C:\Users\Administrator\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe'
+$pnpm = 'C:\Users\Administrator\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\bin\pnpm.cjs'
+cd G:\DSH\_ext\dsh-font-probe
+& $node $pnpm pack        # 产出 dsh-font-probe-<version>.tgz
 ```
 
-> 前提：`repository` / `homepage` / `bugs` 三个字段里的 `<your-name>` 要换成真实用户名，
-> 否则 npm 页面上的链接是坏的。
+然后把 `.tgz` 传到对应 Release 的 Assets 里（和 zip 放一起）。
+
+> 发新版时记得：`pnpm pack` 会生成新的 tgz，**README 里的 URL 版本号要同步改**。
+
+### 5.2 npm（可选）
+
+`dsh plugin --profile desktop add dsh-font-probe`
+
+前提是能注册并使用 npm 账号。**注意**：部分地区访问 npmjs.com 受限，
+注册会被拦（`访问暂时受限`）。这种情况不用纠结，tarball 那条已足够。
+
+如果能用，本机没有 npm 也可以借 DSH 自带的 pnpm：
+
+```powershell
+$node = 'C:\Users\Administrator\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe'
+$pnpm = 'C:\Users\Administrator\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\bin\pnpm.cjs'
+
+cd G:\DSH\_ext\dsh-font-probe
+& $node $pnpm login                       # 交互式，要自己开终端跑
+& $node $pnpm publish --access public --no-git-checks
+```
+
+> `--no-git-checks` 是必需的：这个目录不是 git 仓库，pnpm 的分支检查会报错。
+> `pnpm login` 是交互式的（要输用户名/密码/OTP），必须由人在终端里操作。
+
+### 发布前检查（都通过才可以发）
+
+```powershell
+# 1. 看会打进包里哪些文件（应当只有 7 个，不含 docs/ 与截图）
+& $node $pnpm pack --dry-run
+
+# 2. 空跑一次发布，确认 registry 与版本号
+& $node $pnpm publish --dry-run --access public --no-git-checks
+```
+
+期望的包内清单：
+
+```
+CHANGELOG.md  client.js  cordis.patch.yml  index.js  LICENSE  package.json  README.md
+```
+
+这是 `package.json` 的 `files` 白名单决定的 —— **docs/ 和截图不会进包**，所以 npm 包只有几十 KB。
+
+### 发布后验证
+
+```powershell
+& $node $pnpm view dsh-font-probe version
+```
 
 ## 6. （可选）手动提交到社区目录
 

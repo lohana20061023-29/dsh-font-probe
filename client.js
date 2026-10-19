@@ -215,6 +215,13 @@ window.__ModuleLoader__.load({
     let sheetElement = null
     let sheetDispose = null
 
+    /* 字号这一项会和宿主抢 body 的内联 `--dsh-content-font-size`。
+       覆盖前把宿主的值存起来，撤销时还回去（见 applyNow 通道 2 的注释）。 */
+    let hostSizeCaptured = false
+    let hostSizeBackup = null
+    /** 我们最后写进去的字面值，用来判断"内联里现在是不是我们写的"。 */
+    let hostSizeWritten = ''
+
     function applyNow() {
       /* 界面字体栈由「英文字体 + 中文字体」合成：任一非空即视为启用覆盖。 */
       const uiStack = buildUiStack(state.latinFontFamily, state.fontFamily)
@@ -326,7 +333,15 @@ window.__ModuleLoader__.load({
       }
 
       // 通道 2：inline + important —— 压过一切样式表。
-      // 留空的字段要**移除**自家内联值，而不是写一个默认值进去。
+      //
+      // ⚠️ 字号这一项和宿主**抢同一个内联属性**：
+      //     宿主的 ThemePresenter.apply() 里是
+      //         body.style.setProperty('--dsh-content-font-size', `${fontSizes.text}px`)
+      //     我这边为了盖过它写了 `!important`。问题出在**撤销**：
+      //     直接 removeProperty 会把宿主写在 body.style 上的值一起删掉，
+      //     而宿主只在主题快照变化时才重新推送 —— 于是清空之后字号会"卡住"，
+      //     用户以为插件锁死了字号。
+      // 所以覆盖前先备份宿主的值，撤销时**还回去**而不是删掉。
       try {
         if (typeof document !== 'undefined') {
           const html = document.documentElement
@@ -341,8 +356,38 @@ window.__ModuleLoader__.load({
             applyInline(el, '--ds-font-family-code', codeStack, hasCodeFont)
           }
           if (body && body.style) {
-            if (sizeOk) body.style.setProperty('--dsh-content-font-size', size + 'px', 'important')
-            else body.style.removeProperty('--dsh-content-font-size')
+            const SIZE_VAR = '--dsh-content-font-size'
+            const readInline = () => {
+              const value = typeof body.style.getPropertyValue === 'function' ? body.style.getPropertyValue(SIZE_VAR) : ''
+              const priority = typeof body.style.getPropertyPriority === 'function' ? body.style.getPropertyPriority(SIZE_VAR) : ''
+              return { value: value || '', priority: priority || '' }
+            }
+            if (sizeOk) {
+              /* 只在**第一次覆盖**前抓一次；抓到的是宿主当前的值，
+                 不能每次重抓（否则抓到的是我们自己写进去的）。 */
+              if (!hostSizeCaptured) {
+                hostSizeBackup = readInline()
+                hostSizeCaptured = true
+              }
+              hostSizeWritten = size + 'px'
+              body.style.setProperty(SIZE_VAR, hostSizeWritten, 'important')
+            } else if (hostSizeCaptured) {
+              /* 撤销。两种情形要分开：
+                 ① 现在内联里还是我们写的那个值 → 说明宿主没动过，把备份还回去；
+                 ② 已经不是我们的值 → 宿主在生效期间自己改过字号，那就别再拿旧备份覆盖它。 */
+              const current = readInline()
+              if (current.value === hostSizeWritten) {
+                const backup = hostSizeBackup
+                if (backup && backup.value) body.style.setProperty(SIZE_VAR, backup.value, backup.priority || '')
+                else body.style.removeProperty(SIZE_VAR)
+              }
+              hostSizeCaptured = false
+              hostSizeBackup = null
+              hostSizeWritten = ''
+            } else {
+              /* 从未覆盖过 → 确保没有我们遗留的值即可 */
+              body.style.removeProperty(SIZE_VAR)
+            }
           }
           if (html) {
             html.setAttribute('data-dsh-font-override', SHEET_MARKER)

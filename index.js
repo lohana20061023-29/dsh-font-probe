@@ -18,6 +18,7 @@
 
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import path from 'node:path'
 
 /** profile 里的行 id；DSH 的 configForms 就是按它取表单。 */
 const SETTINGS_ENTRY = 'font-probe'
@@ -40,55 +41,128 @@ const FIELD_DEFAULTS = {
 }
 
 /**
- * 候选解析锚点。`schemastery` 装在 **profile** 的 node_modules 里，不在插件自己的
- * 目录里，所以 `createRequire(import.meta.url)` 解析不到它（实测：Config 变成
- * undefined）。按"最可能命中"的顺序收集锚点：进程参数里的 profiles 路径、
- * DSH_PROFILE_DIR、以及从插件自身路径往上的 profiles 段，最后兜底插件自身。
+ * 候选解析根目录。
+ *
+ * 背景：`@deepseek-ai/schemastery` **不在插件自己的目录里**，所以
+ * `createRequire(import.meta.url)` 直接 `require('@deepseek-ai/schemastery')`
+ * 会 MODULE_NOT_FOUND，Config 变成 undefined（设置表单投射不出来）。
+ *
+ * 更强的做法（借鉴 `dsh-theme-endfield` 的实现）：
+ * 不用"从某个文件 require"，而是 `require.resolve(spec, { paths: [root...] })`
+ * —— 语义就是"**如果从这些目录出发去找**"。这样能覆盖三种装法：
+ *
+ *   1. 插件被装进 profile（`link:` / `file:` / npm）→ 从插件自身目录往上找；
+ *   2. `dsh web` 从 profile 目录启动 → 工作目录、argv 里的 profiles 路径；
+ *   3. **应用自带**（Electron 把 DSH 打进 app.asar）→ 从进程入口 /
+ *      `require.main` 所在的安装树去找。这条路是最后兜底，也是最关键的一条：
+ *      profile 的 node_modules 会被 pnpm 清理，而 app 自己的依赖不会。
+ *
+ * 最后再给一个手动逃生口：`DSH_SCHEMA_ROOT` 环境变量。
  */
-function configRequireAnchors() {
-  const anchors = []
-  const push = (value) => {
-    if (typeof value !== 'string' || value.length === 0) return
-    const norm = value.replace(/[\\/]+$/, '')
-    if (!anchors.includes(norm)) anchors.push(norm)
+function resolutionRoots() {
+  const roots = []
+  const push = (dir) => {
+    if (typeof dir !== 'string' || dir.length === 0) return
+    const norm = dir.replace(/[\\/]+$/, '')
+    if (!roots.includes(norm)) roots.push(norm)
   }
 
+  const selfDir = fileURLToPath(new URL('.', import.meta.url))
+
+  // ① 插件自身及其祖先（处理"装在 profile 里"和"仓库在深层目录"两种）
+  push(selfDir)
+  let dir = selfDir
+  for (let i = 0; i < 6; i += 1) {
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+    push(dir)
+  }
+
+  // ② 进程上下文：工作目录、argv 里的 profiles 路径、DSH_PROFILE_DIR
+  try { push(process.cwd()) } catch (error) { /* 无 cwd */ }
   for (const value of [process.argv0, ...(process.argv || [])]) {
     if (typeof value !== 'string') continue
     const hit = /[\\/]profiles[\\/][^\\/]+/.exec(value)
     if (hit !== null) push(value.slice(0, hit.index + hit[0].length))
   }
-
   push(process.env.DSH_PROFILE_DIR)
 
-  const selfDir = fileURLToPath(new URL('.', import.meta.url))
-  const selfHit = /[\\/]profiles[\\/][^\\/]+/.exec(selfDir)
-  if (selfHit !== null) push(selfDir.slice(0, selfHit.index + selfHit[0].length))
+  // ③ DSH 安装树：入口脚本所在目录、其祖先、以及 require.main
+  for (const entry of [process.argv && process.argv[1], process.mainModule && process.mainModule.filename]) {
+    if (typeof entry !== 'string' || entry.length === 0) continue
+    try {
+      let d = path.dirname(entry)
+      for (let i = 0; i < 4; i += 1) {
+        push(d)
+        const parent = path.dirname(d)
+        if (parent === d) break
+        d = parent
+      }
+    } catch (error) { /* 忽略 */ }
+  }
 
-  push(selfDir)
-  return anchors
+  /* ④ Electron 打包形态：DSH 被塞进 app.asar，schemastery 在
+        app.asar/node_modules 与 app.asar/dsh/node_modules 里各有一份。
+        注意：**只有 Electron 打过补丁的 fs 才能解析 asar 内部路径**，
+        所以这些根在普通 node 里只是"不存在"，会快速跳过。 */
+  try {
+    if (typeof process.resourcesPath === 'string' && process.resourcesPath.length > 0) {
+      push(path.join(process.resourcesPath, 'app.asar', 'dsh'))
+      push(path.join(process.resourcesPath, 'app.asar'))
+      push(path.join(process.resourcesPath, 'app', 'dsh'))
+      push(path.join(process.resourcesPath, 'app'))
+      push(process.resourcesPath)
+    }
+  } catch (error) { /* 无 resourcesPath */ }
+  try {
+    const execDir = path.dirname(process.execPath)
+    push(execDir)
+    push(path.join(execDir, 'resources', 'app.asar', 'dsh'))
+    push(path.join(execDir, 'resources', 'app.asar'))
+    push(path.join(execDir, 'resources', 'app'))
+  } catch (error) { /* 无 execPath */ }
+
+  // ⑤ 手动逃生口
+  push(process.env.DSH_SCHEMA_ROOT)
+
+  return roots
 }
 
 /**
  * 从宿主 realm 懒加载 schemastery。
- * 找不到就返回 undefined —— 那样条目投射不出设置表单，但字体覆盖本身照常工作
- * （客户端用内存默认值）。这样"设置页没出来"不会连累"字体没生效"。
+ *
+ * 两条硬要求：
+ *   1. 必须找得到（否则 Config 为 undefined，设置表单投射不出来）；
+ *   2. **必须带 `.volatile()`**。DSH 0.1.7+ 的可写表单只认 volatile 字段；
+ *      只有裸 `schemastery`（3.18，没有 `.volatile()`）时宁可不给 Config ——
+ *      否则会出现"界面能改、写不进去"的静默失败，正是这个插件早期踩过的坑。
+ *
+ * 找不到就返回 undefined：字体覆盖本身照常工作，只是没有设置页。
  */
 function loadSchemaBuilder() {
-  for (const anchor of configRequireAnchors()) {
-    let req
-    try {
-      req = createRequire(anchor + '/package.json')
-    } catch (error) {
-      continue
-    }
-    for (const id of ['@deepseek-ai/schemastery', 'schemastery']) {
+  const base = createRequire(import.meta.url)
+  const roots = resolutionRoots()
+  const specs = ['@deepseek-ai/schemastery', 'schemastery']
+
+  for (const root of roots) {
+    for (const id of specs) {
+      let resolved
       try {
-        const mod = req(id)
-        const z = mod && mod.default ? mod.default : mod
-        if (z && typeof z.object === 'function' && typeof z.string === 'function') return z
+        resolved = base.resolve(id, { paths: [root] })
       } catch (error) {
-        /* 下一个候选 */
+        continue /* 这个根下没有，换下一个 */
+      }
+      try {
+        const mod = base(resolved)
+        const z = mod && mod.default ? mod.default : mod
+        if (!z || typeof z.object !== 'function' || typeof z.string !== 'function') continue
+        /* 只接受真正带 .volatile() 的构建器 */
+        const probe = typeof z.string === 'function' ? z.string() : null
+        if (!probe || typeof probe.volatile !== 'function') continue
+        return z
+      } catch (error) {
+        /* 加载失败，换下一个 */
       }
     }
   }

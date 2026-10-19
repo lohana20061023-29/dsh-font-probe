@@ -57,8 +57,15 @@ DSH 的 GUI 只内置了配色方案和正文字号（10–22px），**没有字
 
 ## 安装
 
+**推荐用 tarball（不需要装 git）**：
+
 ```bash
-# 从 GitHub 直接装
+dsh plugin --profile desktop add https://github.com/lohana20061023-29/dsh-font-probe/releases/download/v1.5.1/dsh-font-probe-1.5.1.tgz
+```
+
+或者从 GitHub 源码装（**需要本机有 git**）：
+
+```bash
 dsh plugin --profile desktop add github:lohana20061023-29/dsh-font-probe
 ```
 
@@ -73,6 +80,9 @@ dsh plugin --profile desktop add G:/path/to/dsh-font-probe
 
 > 首次安装后必须重启：插件是双半体（host + client），
 > host 半体的配置 schema 要由模块加载器导入一次才生效。
+
+> 升级版本时把上面 URL 里的版本号换成新的即可。
+> 找最新版：<https://github.com/lohana20061023-29/dsh-font-probe/releases/latest>
 
 ### 更新与卸载
 
@@ -183,6 +193,10 @@ no `app.asar` edits, so DSH upgrades never overwrite your setup.
 - Settings persist to the profile and survive restarts
 
 ```bash
+# recommended: no git required
+dsh plugin --profile desktop add https://github.com/lohana20061023-29/dsh-font-probe/releases/download/v1.5.1/dsh-font-probe-1.5.1.tgz
+
+# alternative: from source (requires git on your machine)
 dsh plugin --profile desktop add github:lohana20061023-29/dsh-font-probe
 ```
 

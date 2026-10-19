@@ -1,6 +1,6 @@
 {
   "name": "dsh-font-probe",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Change the DeepSeek Harness web UI font from Settings - CJK/Latin/code family and size, font weights for body and headings, typography (letter-spacing, line-height, paragraph spacing, first-line indent), persisted to the profile.",
   "license": "MIT",
   "type": "module",

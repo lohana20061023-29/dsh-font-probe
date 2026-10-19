@@ -133,6 +133,7 @@ line-height: calc(24px + var(--dsh-content-font-delta, 0px) + <你的值>px) !im
 - 排版四项只对**对话正文**生效，不改侧栏、按钮等界面文字
 - 「浏览本机字体」依赖 [Local Font Access API](https://developer.mozilla.org/docs/Web/API/Local_Font_Access_API)（Chromium 内核有），
   不支持时退回预设列表
+- **「正文字号」留空 = 交给应用自己的「通用 → 字号大小」**；一旦设置，就会覆盖应用的字号
 - 字体必须**本机已安装**，插件不带字体文件
 - 某些字体只有单一字重（例如阿里妈妈数黑体只有 Bold），选中后整体会偏粗 —— 这是字体本身的性质
 

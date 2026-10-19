@@ -168,6 +168,33 @@ cd G:\DSH\_ext\dsh-font-probe
 > `--no-git-checks` 是必需的：这个目录不是 git 仓库，pnpm 的分支检查会报错。
 > `pnpm login` 是交互式的（要输用户名/密码/OTP），必须由人在终端里操作。
 
+### ⚠️ 首次发布会进"暂存"，要批准才上线
+
+npm 2026 年推的 **staged publishing**：新包第一次发布时**不会直接上线**，而是
+
+1. 先发一个占位版本 `0.0.0-stage`（公开可见，内容只有一句话）
+2. 真正的版本进暂存区，**必须由维护者 2FA 批准**才对公众可见
+
+所以 `pnpm publish` 打印 `Published package dsh-font-probe@1.5.2` **不等于已经能用**——
+此时 `dsh plugin add dsh-font-probe` 会拉到那个空占位包。
+
+批准方式（推荐网页）：
+
+```
+https://www.npmjs.com/settings/~/packages   →  Staged Packages 标签页  →  Approve
+```
+
+命令行的对应做法是 `npm stage list` / `npm stage approve <stage-id>`，
+但 pnpm 11.7 的 `stage list` 实测列不出条目，**网页更可靠**。
+
+批准后 `dist-tags.latest` 才会从 `0.0.0-stage` 变成真实版本：
+
+```powershell
+& $node $pnpm view dsh-font-probe version   # 应显示真实版本号
+```
+
+> 那个 `0.0.0-stage` 会永久留在版本列表里，无害。
+
 ### 发布前检查（都通过才可以发）
 
 ```powershell

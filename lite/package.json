@@ -1,0 +1,55 @@
+{
+  "name": "dsh-font-probe-lite",
+  "version": "1.0.0",
+  "description": "Minimal companion plugin for DSH: only font weights (interface + headings) and typography (letter-spacing, line-height, paragraph spacing, first-line indent) — the parts the official Appearance settings do not provide.",
+  "license": "MIT",
+  "type": "module",
+  "author": "dsh-font-probe contributors",
+  "homepage": "https://github.com/lohana20061023-29/dsh-font-probe#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lohana20061023-29/dsh-font-probe.git"
+  },
+  "bugs": {
+    "url": "https://github.com/lohana20061023-29/dsh-font-probe/issues"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "font",
+    "typography",
+    "theme",
+    "cjk",
+    "line-height",
+    "letter-spacing"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-renderer",
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}

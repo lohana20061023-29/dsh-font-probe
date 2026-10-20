@@ -1,0 +1,8 @@
+# dsh-font-probe-lite bundle patch
+#
+# 轻量版：只提供字重与排版。字体族、字号都交给 DSH 官方的「设置 → 通用 → 外观」。
+# 与 dsh-font-probe 使用不同的 id / 设置命名空间，二者可以共存且不冲突
+# （轻量版不写任何字体或字号令牌）。
+- insert:
+    - id: font-probe-lite
+      name: dsh-font-probe-lite

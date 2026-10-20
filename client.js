@@ -25,9 +25,7 @@ window.__ModuleLoader__.load({
     const DEFAULTS = {
       fontFamily: '',
       latinFontFamily: '',
-      fontSize: '',
       codeFontFamily: '',
-      codeFontSize: '',
       /* 字重：空 = 不覆盖 */
       fontWeight: '',
       headingFontWeight: '',
@@ -114,7 +112,63 @@ window.__ModuleLoader__.load({
       { label: '黑体（SimHei）', value: 'SimHei', system: true },
       { label: '宋体（SimSun）', value: 'SimSun', system: true },
       { label: 'Segoe UI（仅拉丁）', value: 'Segoe UI', system: true },
-    ]
+      {
+        label: '霞鹜文楷（LXGW WenKai）',
+        value: 'LXGW WenKai',
+        aliases: ['霞鹜文楷'],
+        downloadUrl: 'https://github.com/lxgw/LxgwWenKai',
+        /* 开源（OFL） */
+      },
+      {
+        label: '霞鹜文楷 屏幕阅读版',
+        value: 'LXGW WenKai Screen',
+        aliases: ['霞鹜文楷屏幕阅读版'],
+        downloadUrl: 'https://github.com/lxgw/LxgwWenKai-Screen',
+        /* 开源（OFL），笔画更清晰 */
+      },
+      {
+        label: '霞鹜文楷 GB',
+        value: 'LXGW WenKai GB',
+        aliases: ['霞鹜文楷GB'],
+        downloadUrl: 'https://github.com/lxgw/LxgwWenKaiGB',
+        /* 开源（OFL），简体字形 */
+      },
+      {
+        label: '月星楷',
+        value: '月星楷',
+        aliases: ['MoonStarsKai', 'YueXingKai'],
+        downloadUrl: 'https://github.com/GuiWonder/MoonStarsKai',
+        /* 开源 */
+      },
+      {
+        label: '香萃等粗宋',
+        value: '香萃等粗宋',
+        aliases: ['Xiangcui Dengcusong', 'XiangCuiDengCuSong'],
+        downloadUrl: 'https://github.com/Miiiller/Xiangcui-Dengcusong',
+        /* 开源 */
+      },
+      {
+        label: '方正魏碑',
+        value: '方正魏碑',
+        aliases: ['方正魏碑简体', 'FZWeiBei-S03'],
+        downloadUrl: 'https://www.foundertype.com/index.php/FontList/index?keyword=%E9%AD%8F%E7%A2%91',
+        /* 商用需授权 */
+      },
+      {
+        label: '方正粗金陵',
+        value: '方正粗金陵',
+        aliases: ['方正粗金陵简体', 'FZCuJinLin'],
+        downloadUrl: 'https://www.foundertype.com/index.php/FontList/index?keyword=%E7%B2%97%E9%87%91%E9%99%B5',
+        /* 商用需授权 */
+      },
+      {
+        label: '方正行楷',
+        value: '方正行楷',
+        aliases: ['方正行楷简体', 'FZXingKai-S04'],
+        downloadUrl: 'https://www.foundertype.com/index.php/FontList/index?keyword=%E8%A1%8C%E6%A5%B7',
+        /* 商用需授权 */
+      },
+   ]
 
     /**
      * 判断某个字体族本机是否真的可用。
@@ -145,6 +199,20 @@ window.__ModuleLoader__.load({
       }
     }
 
+    /** 一个预设对应的全部真实族名（主名 + 别名）。没有对应预设时就是它自己。 */
+    const familiesOf = (family) => {
+      const name = typeof family === 'string' ? family.trim() : ''
+      if (name === '') return []
+      const choice = FONT_CHOICES.find(
+        (c) => c.value === name || (c.aliases || []).indexOf(name) >= 0,
+      )
+      if (!choice) return [name]
+      return [choice.value].concat(choice.aliases || [])
+    }
+
+    /** 任一别名装上就算装了 —— 中文字体常以中/英两种族名安装。 */
+    const isChoiceAvailable = (family) => familiesOf(family).some(isFamilyAvailable)
+
     /* 应用自带字体栈，抄成字面量当兜底。**不能**写 var(--dsw-font-family)：
        那是在声明该令牌的规则里引用它自己，属于自引用，整条声明判无效。 */
     const APP_FALLBACK_STACK =
@@ -155,19 +223,21 @@ window.__ModuleLoader__.load({
 
     const SHEET_MARKER = 'font-probe/1.0.0-settings'
 
-    /** 把一个字体族名包成栈：选择在前，应用自带栈兜底。 */
-    const stackFor = (family, fallback) => {
-      const name = typeof family === 'string' ? family.trim() : ''
-      if (name === '') return fallback
-      const quoted = /^[A-Za-z][A-Za-z0-9 _-]*$/.test(name) ? `"${name}"` : name
-      return `${quoted}, ${fallback}`
+    /** 单个族名 → 可安全放进 CSS 的值（纯英文含空格的需要引号）。 */
+    const quoteOne = (name) => (/^[A-Za-z][A-Za-z0-9 _-]*$/.test(name) ? `"${name}"` : name)
+
+    /** 字体族名 → CSS 值。预设会把全部别名一起列出来，浏览器挑装了的那个。 */
+    const quoteFamily = (family) => {
+      const names = familiesOf(family)
+      if (names.length === 0) return ''
+      return names.filter((n) => n !== '').map(quoteOne).join(', ')
     }
 
-    /** 字体族名 → 可安全放进 CSS 的值（含空格等需要引号）。 */
-    const quoteFamily = (family) => {
-      const name = typeof family === 'string' ? family.trim() : ''
-      if (name === '') return ''
-      return /^[A-Za-z][A-Za-z0-9 _-]*$/.test(name) ? `"${name}"` : name
+    /** 把一个字体族名包成栈：选择在前，应用自带栈兜底。 */
+    const stackFor = (family, fallback) => {
+      const quoted = quoteFamily(family)
+      if (quoted === '') return fallback
+      return `${quoted}, ${fallback}`
     }
 
     /**
@@ -189,9 +259,7 @@ window.__ModuleLoader__.load({
     const state = {
       fontFamily: DEFAULTS.fontFamily,
       latinFontFamily: DEFAULTS.latinFontFamily,
-      fontSize: DEFAULTS.fontSize,
       codeFontFamily: DEFAULTS.codeFontFamily,
-      codeFontSize: DEFAULTS.codeFontSize,
       fontWeight: DEFAULTS.fontWeight,
       headingFontWeight: DEFAULTS.headingFontWeight,
       letterSpacing: DEFAULTS.letterSpacing,
@@ -215,28 +283,19 @@ window.__ModuleLoader__.load({
     let sheetElement = null
     let sheetDispose = null
 
-    /* 字号这一项会和宿主抢 body 的内联 `--dsh-content-font-size`。
-       覆盖前把宿主的值存起来，撤销时还回去（见 applyNow 通道 2 的注释）。 */
-    let hostSizeCaptured = false
-    let hostSizeBackup = null
-    /** 我们最后写进去的字面值，用来判断"内联里现在是不是我们写的"。 */
-    let hostSizeWritten = ''
-
     function applyNow() {
       /* 界面字体栈由「英文字体 + 中文字体」合成：任一非空即视为启用覆盖。 */
       const uiStack = buildUiStack(state.latinFontFamily, state.fontFamily)
       const hasUiFont = uiStack !== ''
       const hasCodeFont = typeof state.codeFontFamily === 'string' && state.codeFontFamily.trim() !== ''
       const codeStack = stackFor(state.codeFontFamily, APP_CODE_FALLBACK_STACK)
-      const size = typeof state.fontSize === 'string' ? state.fontSize.trim() : ''
-      const sizeOk = /^\d+(\.\d+)?$/.test(size)
 
       /* 留空 = **不覆盖**，而不是覆盖成应用默认栈。
          这样"什么都没配"时本插件对界面完全无影响，也不会跟别的主题抢令牌。 */
       const declarations = []
       if (hasUiFont) declarations.push(`--dsw-font-family: ${uiStack};`)
       if (hasCodeFont) declarations.push(`--ds-font-family-code: ${codeStack};`)
-      const bodyDeclarations = sizeOk ? [`--dsh-content-font-size: ${size}px;`] : []
+      const bodyDeclarations = []
 
       /* ---------- 排版四项：只作用于正文（Markdown 区域）----------
          容器是 `<div class="<hash>_markdown">`（primitives 的 Markdown 组件）。
@@ -268,14 +327,6 @@ window.__ModuleLoader__.load({
       const firstLineIndent = metricValue(state.firstLineIndent)
       if (firstLineIndent > 0) {
         metricRules.push(`${MD} p { text-indent: ${firstLineIndent}em !important; }`)
-      }
-
-      /* 代码字号：应用把代码块的字号写死在各自规则里（例如 11px/16px 的 font 简写），
-         没有可供覆盖的令牌，所以直接用语义标签压 font-size。
-         pre / code / kbd / samp 本来就是"代码"语义，改动它们不会波及普通正文。 */
-      const codeSize = String(state.codeFontSize == null ? '' : state.codeFontSize).trim()
-      if (/^\d+(\.\d+)?$/.test(codeSize) && Number(codeSize) > 0) {
-        metricRules.push(`pre, pre code, code, kbd, samp { font-size: ${Number(codeSize)}px !important; }`)
       }
 
       /* ---------- 字重 ----------
@@ -333,15 +384,7 @@ window.__ModuleLoader__.load({
       }
 
       // 通道 2：inline + important —— 压过一切样式表。
-      //
-      // ⚠️ 字号这一项和宿主**抢同一个内联属性**：
-      //     宿主的 ThemePresenter.apply() 里是
-      //         body.style.setProperty('--dsh-content-font-size', `${fontSizes.text}px`)
-      //     我这边为了盖过它写了 `!important`。问题出在**撤销**：
-      //     直接 removeProperty 会把宿主写在 body.style 上的值一起删掉，
-      //     而宿主只在主题快照变化时才重新推送 —— 于是清空之后字号会"卡住"，
-      //     用户以为插件锁死了字号。
-      // 所以覆盖前先备份宿主的值，撤销时**还回去**而不是删掉。
+      // 只写字体族：字号由官方的「通用 → 外观」负责，这里不碰。
       try {
         if (typeof document !== 'undefined') {
           const html = document.documentElement
@@ -354,40 +397,6 @@ window.__ModuleLoader__.load({
           for (const el of [html, body]) {
             applyInline(el, '--dsw-font-family', uiStack, hasUiFont)
             applyInline(el, '--ds-font-family-code', codeStack, hasCodeFont)
-          }
-          if (body && body.style) {
-            const SIZE_VAR = '--dsh-content-font-size'
-            const readInline = () => {
-              const value = typeof body.style.getPropertyValue === 'function' ? body.style.getPropertyValue(SIZE_VAR) : ''
-              const priority = typeof body.style.getPropertyPriority === 'function' ? body.style.getPropertyPriority(SIZE_VAR) : ''
-              return { value: value || '', priority: priority || '' }
-            }
-            if (sizeOk) {
-              /* 只在**第一次覆盖**前抓一次；抓到的是宿主当前的值，
-                 不能每次重抓（否则抓到的是我们自己写进去的）。 */
-              if (!hostSizeCaptured) {
-                hostSizeBackup = readInline()
-                hostSizeCaptured = true
-              }
-              hostSizeWritten = size + 'px'
-              body.style.setProperty(SIZE_VAR, hostSizeWritten, 'important')
-            } else if (hostSizeCaptured) {
-              /* 撤销。两种情形要分开：
-                 ① 现在内联里还是我们写的那个值 → 说明宿主没动过，把备份还回去；
-                 ② 已经不是我们的值 → 宿主在生效期间自己改过字号，那就别再拿旧备份覆盖它。 */
-              const current = readInline()
-              if (current.value === hostSizeWritten) {
-                const backup = hostSizeBackup
-                if (backup && backup.value) body.style.setProperty(SIZE_VAR, backup.value, backup.priority || '')
-                else body.style.removeProperty(SIZE_VAR)
-              }
-              hostSizeCaptured = false
-              hostSizeBackup = null
-              hostSizeWritten = ''
-            } else {
-              /* 从未覆盖过 → 确保没有我们遗留的值即可 */
-              body.style.removeProperty(SIZE_VAR)
-            }
           }
           if (html) {
             html.setAttribute('data-dsh-font-override', SHEET_MARKER)
@@ -613,9 +622,7 @@ window.__ModuleLoader__.load({
       Object.assign(state, {
         fontFamily: str(value.fontFamily, '') !== '' ? value.fontFamily : DEFAULTS.fontFamily,
         latinFontFamily: str(value.latinFontFamily, DEFAULTS.latinFontFamily),
-        fontSize: str(value.fontSize, DEFAULTS.fontSize),
         codeFontFamily: str(value.codeFontFamily, DEFAULTS.codeFontFamily),
-        codeFontSize: str(value.codeFontSize, DEFAULTS.codeFontSize),
         fontWeight: str(value.fontWeight, DEFAULTS.fontWeight),
         headingFontWeight: str(value.headingFontWeight, DEFAULTS.headingFontWeight),
         letterSpacing: str(value.letterSpacing, DEFAULTS.letterSpacing),
@@ -747,38 +754,12 @@ window.__ModuleLoader__.load({
       cursor: 'pointer',
     }
 
-    /* 预览用**草稿**字体，而不是已应用的字体 —— 确认制下这才有意义：
-       先在这里看准了再点确认。 */
-    function PreviewBlock(props) {
-      const family = stackFor(props && props.fontFamily, APP_FALLBACK_STACK)
-      return React.createElement(
-        'div',
-        {
-          style: {
-            border: '0.5px solid var(--dsw-alias-border-l2)',
-            borderRadius: 'var(--dsw-radius-lg)',
-            background: 'var(--dsw-alias-bg-layer-1)',
-            padding: '12px 16px',
-            fontFamily: family,
-            color: 'var(--dsw-alias-label-primary)',
-            lineHeight: '1.7',
-          },
-        },
-        [
-          React.createElement('div', { key: 'cn', style: { fontSize: '15px' } }, '字体预览：永和九年，岁在癸丑，暮春之初。'),
-          React.createElement('div', { key: 'en', style: { fontSize: '15px' } }, 'The quick brown fox jumps over the lazy dog. 0123456789'),
-          React.createElement('div', { key: 'mix', style: { fontSize: '13px', color: 'var(--dsw-alias-label-tertiary)' } }, '混排 ABC 中文 123 · 标点，。！？——…《》'),
-        ],
-      )
-    }
 
     function FontSettingsPage() {
       const snapshot = React.useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot)
       const [draft, setDraft] = React.useState(snapshot.fontFamily)
       const [draftLatin, setDraftLatin] = React.useState(snapshot.latinFontFamily)
-      const [draftSize, setDraftSize] = React.useState(snapshot.fontSize)
       const [draftCode, setDraftCode] = React.useState(snapshot.codeFontFamily)
-      const [draftCodeSize, setDraftCodeSize] = React.useState(snapshot.codeFontSize)
       const [draftWeight, setDraftWeight] = React.useState(snapshot.fontWeight)
       const [draftHeadingWeight, setDraftHeadingWeight] = React.useState(snapshot.headingFontWeight)
 
@@ -830,20 +811,10 @@ window.__ModuleLoader__.load({
       /* ---------- 草稿 → 确认 的提交模型 ----------
          控件只改本地草稿，界面与 profile 都不动；点「确认应用」才一次性生效并写盘。
          好处：可以先把字体挑好、在预览里看准了再提交，避免每动一下就改全局。 */
-      const [syncedSize, setSyncedSize] = React.useState(snapshot.fontSize)
-      if (syncedSize !== snapshot.fontSize) {
-        setSyncedSize(snapshot.fontSize)
-        setDraftSize(snapshot.fontSize)
-      }
       const [syncedCode, setSyncedCode] = React.useState(snapshot.codeFontFamily)
       if (syncedCode !== snapshot.codeFontFamily) {
         setSyncedCode(snapshot.codeFontFamily)
         setDraftCode(snapshot.codeFontFamily)
-      }
-      const [syncedCodeSize, setSyncedCodeSize] = React.useState(snapshot.codeFontSize)
-      if (syncedCodeSize !== snapshot.codeFontSize) {
-        setSyncedCodeSize(snapshot.codeFontSize)
-        setDraftCodeSize(snapshot.codeFontSize)
       }
       const [syncedWeight, setSyncedWeight] = React.useState(snapshot.fontWeight)
       if (syncedWeight !== snapshot.fontWeight) {
@@ -872,34 +843,18 @@ window.__ModuleLoader__.load({
         'The quick brown fox jumps over the lazy dog — 0123456789',
       ]
 
-      /* 行高/字号基准与应用一致：24px 基准 + 正文字号增量，再叠加草稿里的行距增量。
-         预览的字号必须**跟着草稿走** —— 之前这里写死 15px/14px，
-         结果改正文字号时只有行高变了、字号纹丝不动，看着像功能没生效。 */
-      const draftSizeNum = Number(String(draftSize).trim())
-      const sizeValid = Number.isFinite(draftSizeNum) && draftSizeNum > 0
-      const baseLineHeight = sizeValid ? 24 + (draftSizeNum - 14) : 24
+      /* 字号交给官方「外观」，预览按应用默认尺寸渲染：
+         正文 14px、标题 h2 19/28px、代码 12px；只有行距会带动行高。 */
+      const baseLineHeight = 24
       const previewLineHeight = baseLineHeight + (metrics.lineHeight || 0)
-      /* 未设置时按应用默认的 14px 显示，这样"空"和"设成 14"看起来一致，符合预期 */
-      const previewFontSize = sizeValid ? draftSizeNum : 14
-
-      /* 字重：正文跟随「界面字重」（未设为 400），标题跟随「标题字重」（未设为 700）。
-         这两个默认值来自应用自己的令牌：
-           --dsw-font-markdown-base 不带字重 → 400
-           --dsw-font-markdown-h1/h2/h3:     → 700，h4 才是 600
-         所以标题样张按 h2 处理（700）。 */
-      const weightDelta = sizeValid ? draftSizeNum - 14 : 0
+      const previewFontSize = 14
       const previewBodyWeight = weightValue(draftWeight) || 400
       const previewHeadingWeight = weightValue(draftHeadingWeight) || 700
-      const previewHeadingSize = 19 + weightDelta   // h2 = calc(19px + delta)
-      const previewHeadingLineHeight = 28 + weightDelta
-
-      /* 代码样张：只受「代码字体 / 代码字号」影响。
-         应用里代码块字号在 11–13px 区间（各组件写死，没有令牌），
-         未设置时取 12px 作为代表值；用户设了就用用户的。 */
-      const draftCodeSizeNum = Number(String(draftCodeSize).trim())
-      const codeSizeValid = Number.isFinite(draftCodeSizeNum) && draftCodeSizeNum > 0
-      const previewCodeFontSize = codeSizeValid ? draftCodeSizeNum : 12
+      const previewHeadingSize = 19
+      const previewHeadingLineHeight = 28
+      const previewCodeFontSize = 12
       const previewCodeLineHeight = Math.round(previewCodeFontSize * 1.6)
+
       /* 反引号在单引号字符串里是普通字符，不会被当成模板插值 */
       const previewCodeSample = [
         'const greet = (name) => `Hi, ${name}`',
@@ -910,27 +865,19 @@ window.__ModuleLoader__.load({
 
       /* 触发按钮上显示的名字：命中预设就显示预设的友好名称，否则原样显示族名。 */
       const draftFamily = asDraft(draft)
-      const matchedChoice = FONT_CHOICES.find((c) => c.value === draftFamily)
+      const matchedChoice = FONT_CHOICES.find(
+        (c) => c.value === draftFamily || (c.aliases || []).indexOf(draftFamily) >= 0,
+      )
       const currentFamilyLabel = draftFamily === ''
         ? '默认（应用自带字体）'
         : (matchedChoice ? matchedChoice.label : draftFamily)
       const hasChanges =
         asDraft(draft) !== asDraft(snapshot.fontFamily) ||
         asDraft(draftLatin) !== asDraft(snapshot.latinFontFamily) ||
-        asDraft(draftSize) !== asDraft(snapshot.fontSize) ||
         asDraft(draftCode) !== asDraft(snapshot.codeFontFamily) ||
-        asDraft(draftCodeSize) !== asDraft(snapshot.codeFontSize) ||
         asDraft(draftWeight) !== asDraft(snapshot.fontWeight) ||
         asDraft(draftHeadingWeight) !== asDraft(snapshot.headingFontWeight) ||
         METRIC_KEYS.some((k) => metrics[k] !== metricValue(snapshot[k]))
-
-      /** 字号只接受正的十进制数；其它输入一律按"不覆盖"存空，避免脏值进 profile。 */
-      const pxOrEmpty = (v) => {
-        const t = String(v == null ? '' : v).trim()
-        if (!/^\d+(\.\d+)?$/.test(t)) return ''
-        const n = Number(t)
-        return n > 0 ? t : ''
-      }
 
       /** 字重只接受 100–900 的整百，其它一律存空。 */
       const weightOrEmpty = (v) => {
@@ -945,9 +892,7 @@ window.__ModuleLoader__.load({
           {
             fontFamily: draft,
             latinFontFamily: draftLatin,
-            fontSize: pxOrEmpty(draftSize),
             codeFontFamily: draftCode,
-            codeFontSize: pxOrEmpty(draftCodeSize),
             fontWeight: weightOrEmpty(draftWeight),
             headingFontWeight: weightOrEmpty(draftHeadingWeight),
             ...metricPayload,
@@ -960,9 +905,7 @@ window.__ModuleLoader__.load({
       const resetDrafts = () => {
         setDraft(DEFAULTS.fontFamily)
         setDraftLatin(DEFAULTS.latinFontFamily)
-        setDraftSize(DEFAULTS.fontSize)
         setDraftCode(DEFAULTS.codeFontFamily)
-        setDraftCodeSize(DEFAULTS.codeFontSize)
         setDraftWeight(DEFAULTS.fontWeight)
         setDraftHeadingWeight(DEFAULTS.headingFontWeight)
         setMetrics(pickMetrics(DEFAULTS))
@@ -1273,7 +1216,7 @@ React.createElement('div', {
                   }, FONT_CHOICES.map((choice) => {
                     /* 每次展开菜单时实测哪些没装：7 个族各量一次宽度，开销可忽略。
                        只在菜单打开时算，关着的时候完全不碰 canvas。 */
-                    const installed = isFamilyAvailable(choice.value)
+                    const installed = isChoiceAvailable(choice.value)
                     const showDownload = !installed && typeof choice.downloadUrl === 'string'
                     return React.createElement('div', {
                       key: choice.value,
@@ -1446,47 +1389,6 @@ React.createElement('div', {
           ]),
 
           pickerOpen && pickerFor === 'code' ? renderFontPicker() : null,
-        ]),
-      )
-
-      /* ---------- 字号：正文 / 代码 并排一行，中间一条竖线分隔 ----------
-         两者都是"字号"这一件事，各占一行太松散；并排后左对齐关系也更直观。
-         每格内部是「标签 + 输入框」竖排，竖线用 alignSelf:stretch 撑满行高。 */
-      const sizeField = (key, label, hint, ariaLabel, placeholder, value, onChange) =>
-        React.createElement('div', {
-          key,
-          style: { flex: '1 1 0', minWidth: '0', display: 'flex', flexDirection: 'column', gap: '6px' },
-        }, [
-          React.createElement('span', { key: 'l' }, [
-            React.createElement('span', { key: 't', style: labelStyle }, label),
-            React.createElement('span', { key: 'h', style: hintStyle }, hint),
-          ]),
-          React.createElement('input', {
-            key: 'i',
-            type: 'text',
-            inputMode: 'numeric',
-            'aria-label': ariaLabel,
-            placeholder,
-            value,
-            style: { ...controlStyle, minWidth: '0', width: '100%' },
-            onChange,
-            onKeyDown: (event) => {
-              if (event.key === 'Enter') confirmAll()
-            },
-          }),
-        ])
-
-      rows.push(
-        React.createElement('div', { key: 'sizes', style: { ...rowStyle, alignItems: 'stretch', gap: '16px' } }, [
-          sizeField('bodySize', '正文字号', '留空交给「通用 → 字号大小」', '正文字号', '例如 15', draftSize,
-            (event) => setDraftSize(event.target.value)),
-          React.createElement('div', {
-            key: 'divider',
-            'aria-hidden': true,
-            style: { flex: '0 0 auto', width: '0.5px', alignSelf: 'stretch', background: 'var(--dsw-alias-border-l2)' },
-          }),
-          sizeField('codeSize', '代码字号', '留空用应用自带字号', '代码字号', '例如 13', draftCodeSize,
-            (event) => setDraftCodeSize(event.target.value)),
         ]),
       )
 

@@ -27,9 +27,7 @@ const SETTINGS_ENTRY = 'font-probe'
 const FIELD_DEFAULTS = {
   fontFamily: '',
   latinFontFamily: '',
-  fontSize: '',
   codeFontFamily: '',
-  codeFontSize: '',
   /* 字重：界面（含正文）/ 标题。存字符串，空 = 不覆盖。 */
   fontWeight: '',
   headingFontWeight: '',
@@ -198,9 +196,7 @@ function buildConfig() {
   return z.object({
     fontFamily: str(FIELD_DEFAULTS.fontFamily),
     latinFontFamily: str(FIELD_DEFAULTS.latinFontFamily),
-    fontSize: str(FIELD_DEFAULTS.fontSize),
     codeFontFamily: str(FIELD_DEFAULTS.codeFontFamily),
-    codeFontSize: str(FIELD_DEFAULTS.codeFontSize),
     fontWeight: str(FIELD_DEFAULTS.fontWeight),
     headingFontWeight: str(FIELD_DEFAULTS.headingFontWeight),
     letterSpacing: str(FIELD_DEFAULTS.letterSpacing),

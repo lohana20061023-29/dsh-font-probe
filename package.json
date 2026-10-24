@@ -48,7 +48,8 @@
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/sponsor.png"
   ],
   "engines": {
     "node": ">=18"

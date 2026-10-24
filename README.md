@@ -214,6 +214,12 @@ dsh-font-probe/
 
 ---
 
+## 赞助
+
+如果这个插件帮你省了时间，可以请我喝杯咖啡。两个码长期有效，金额随意。
+
+<img src="https://raw.githubusercontent.com/lohana20061023-29/dsh-font-probe/main/docs/sponsor.png" width="620" alt="赞助：微信 / 支付宝">
+
 ## English
 
 A client plugin that changes the **DeepSeek Harness web UI font** from Settings —
